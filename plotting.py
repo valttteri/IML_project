@@ -27,13 +27,13 @@ test_df = test_df.drop(columns=["date"])
 test_df = test_df.set_index("id")
 real_testx_scaled = get_scaled_test_data()
 
-def plot_feature_importance_rsquared(x_range, r2_scores):
+def plot_feature_importance_accuracy(x_range, ac_scores, metric):
 
-    plt.plot(list(range(1, x_range + 1)), r2_scores)
+    plt.plot(list(range(1, x_range + 1)), ac_scores)
     #plt.xticks(list(range(1, len(X_train.columns) + 1)))
-    plt.title(f"$R^2$ score with the n most important features")
-    plt.xlabel("Number of features")
-    plt.ylabel(f"$R^2$")
+    plt.title(f"{metric} Score with N Features")
+    plt.xlabel("Number of Features")
+    plt.ylabel("Accuracy")
     plt.show()
 
 def plot_rf_feature_importances(data: pd.Series):
@@ -55,39 +55,42 @@ def pairplot_data(data):
     sns.pairplot(data=data, height=2, aspect=1.1)
     plt.show()
 
+def compare_two_results(path1, path2, name1, name2):
+    df1 = pd.read_csv(path1).set_index("features")
+    df2 = pd.read_csv(path2).set_index("features")
+
+    fig, ax = plt.subplots(2, figsize=(10, 12)) 
+    ax[0].plot(df1.index, df1["score"], label=f"{name1}")
+    ax[0].set_ylabel(f"{name1}")
+    ax[0].set_xlabel("Number of features")
+    ax[0].set_xticks(list(range(5, 101, 5)))
+    ax[0].legend()
+
+
+    ax[1].plot(df2.index, df2["score"], label=f"{name2}")
+    ax[1].set_xlabel("Number of Features")
+    ax[1].set_ylabel(f"{name2}")
+    ax[1].set_xticks(list(range(5, 101, 5)))
+    ax[1].legend()
+
+    #fig.tight_layout()
+    fig.subplots_adjust(hspace=0.3)
+    plt.show()
+
 
 if __name__ == "__main__":
     test_df_cols = test_df.columns.tolist()
     mean_cols = [c for c in test_df_cols if "mean" in c]
 
-    #print(mean_cols)
-
-    pairplot_data(test_df[mean_cols[:5]])
     """
-    # Apply t-SNE
-    tsne = TSNE(n_components=2, random_state=42)
-    X_tsne = tsne.fit_transform(test_df)
-
-    # Plot t-SNE results
-    plt.figure(figsize=(10, 8))
-    scatter = plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=range(len(test_df)), cmap='viridis')
-    plt.title('t-SNE Visualization')
-    plt.colorbar(scatter, label='Classes')
-    plt.show()
-
-    # Apply PCA
-    pca = PCA()
-    X_pca = pca.fit_transform(test_df)
-
-    # Plot PCA results
-    plt.figure(figsize=(10, 8))
-    scatter = plt.scatter(X_pca[:, 0], X_pca[:, 1], c=range(len(test_df)), cmap='viridis')
-    plt.title('PCA Visualization of Iris Dataset')
-    plt.xlabel('First Principal Component')
-    plt.ylabel('Second Principal Component')
-    plt.colorbar(scatter, label='Species')
-    plt.show()
-
-    # Print explained variance ratio
-    print(f"Explained variance ratio: {pca.explained_variance_ratio_}")
+    compare_two_results(
+        path1="cv_score_balanced_accuracy.csv",
+        path2="cv_score_f1_weighted.csv",
+        name1="Balanced accuracy",
+        name2="Weighted F1 score"
+    )
     """
+
+    cr = x_train.corr(method="pearson")
+
+    print(cr)

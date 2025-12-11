@@ -22,8 +22,10 @@ y_df = pd.concat([y_train, y_test], axis=0)
 
 real_testx_scaled = get_scaled_test_data()
 
+best_features = None
+
 def cv_score(model, train_y, train_x, scoring: str):
-    cv_result = cross_validate(model, train_x, train_y, cv=10, scoring=scoring)
+    cv_result = cross_validate(model, train_x, train_y, cv=10, scoring=scoring, n_jobs=-1)
     #cv_mse = -np.mean(cv_result["test_score"])
 
     return max(cv_result["test_score"])
@@ -33,12 +35,12 @@ def objective_func(trial):
         "n_estimators": trial.suggest_int("n_estimators", 80, 500),
         "criterion": trial.suggest_categorical("criterion", ["gini", "entropy", "log_loss"]),
         "max_depth": trial.suggest_int("max_depth", 5, 40),
-        "min_samples_split": trial.suggest_int("min_samples_split", 2, 15),
+        "min_samples_split": trial.suggest_int("min_samples_split", 2, 30),
         "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 15),
-        "min_weight_fraction_leaf": trial.suggest_float("min_weight_fraction_leaf", 0.0, 0.25),
+        "min_weight_fraction_leaf": trial.suggest_float("min_weight_fraction_leaf", 0.0, 0.05),
         "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2"]),
         "max_leaf_nodes": trial.suggest_int("max_leaf_nodes", 50, 1000),
-        "min_impurity_decrease": trial.suggest_float("min_impurity_decrease", 0.08, 0.5),
+        "min_impurity_decrease": trial.suggest_float("min_impurity_decrease", 0, 0.05),
         "n_jobs": -1,
         "random_state": 42,
         "class_weight": trial.suggest_categorical("class_weight", ["balanced", "balanced_subsample", None])
@@ -50,11 +52,12 @@ def objective_func(trial):
     pred = model.predict(x_test_scaled)
 
     #score = accuracy_score(y_test, pred)
+    
     score = cv_score(
         model=model,
         train_y=y_df,
         train_x=x_df,
-        scoring="accuracy"
+        scoring="balanced_accuracy"
     )
 
     return score
