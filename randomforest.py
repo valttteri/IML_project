@@ -5,6 +5,7 @@ import statsmodels.api as sm
 import shap
 import optuna
 import math
+import warnings
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
@@ -22,6 +23,11 @@ from sklearn.inspection import permutation_importance
 from data import get_data, get_scaled_test_data, scale_data
 from hyperparam_optimization import objective_func, run_study, cv_score
 from plotting import plot_feature_importance_accuracy, plot_rf_feature_importances
+
+warnings.filterwarnings(
+    "ignore",
+    message="y_pred contains classes not in y_true"
+)
 
 np.set_printoptions(suppress=True, precision=4)
 
@@ -140,6 +146,8 @@ def random_forest_optimized(model, train_x, train_y, test_x, test_y):
     print(f"Testing accuracy score: {round(ac_score, 6)}")
     print(f"Training accuracy score: {round(ac_score_train, 6)}")
 
+    return ac_score, ac_score_train
+
 
 def create_kaggle_solution(
     model: RandomForestClassifier,
@@ -156,8 +164,7 @@ def create_kaggle_solution(
 
     max_probs = [max(p) for p in prob]
 
-    #print("pred:", pred[:10])
-    #print("probs", max_probs[:10])
+    # prob_col -> P(class2 = event)
     prob_col = []
 
     for i, pr in enumerate(pred):
@@ -165,9 +172,6 @@ def create_kaggle_solution(
             prob_col.append(1-max_probs[i])
         else:
             prob_col.append(max_probs[i]) 
-
-
-    #print("binaries", prob_col[:10])
 
     result = pd.DataFrame(
         {
@@ -223,7 +227,6 @@ def randomforest_pipeline():
 
     # Get an ordered list of model.feature_importances_
     feature_importances = get_feature_importances(rf_model, train_x.columns.tolist())
-    #feature_importances = get_feature_importances_permutation(rf_model, test_x, test_y)
     #plot_rf_feature_importances(feature_importances)
 
     # Define the optimal features for Random Forest classification
@@ -260,13 +263,13 @@ def randomforest_pipeline():
 
     #### 5. Create kaggle submission ####
 
-    # Get the actual testing dataset
-    real_testx_scaled = get_scaled_test_data()
+    # Get the actual Kaggle testing dataset
+    kaggle_testx_scaled = get_scaled_test_data()
     create_kaggle_solution(
         model=rf_model,
         train_x=best_train_x,
         train_y=train_y,
-        test_x=real_testx_scaled[best_features],
+        test_x=kaggle_testx_scaled[best_features],
         params=best_parameters
     )
 
@@ -275,9 +278,89 @@ def randomforest_pipeline():
     #plot_feature_importance_accuracy(len(ac_scores), ac_scores)
     #plot_feature_importance_accuracy(len(cv_scores), cv_scores, "Cross-validation")
 
-if __name__ == "__main__":
-    randomforest_pipeline()
+    return best_features, best_parameters
 
+def rf_classifier_multiple_rounds(
+        features: list,
+        params: dict,
+        rounds: int,
+):
+    """
+    Calculate testing metrics of multiple runs with the RF classifier,
+    and return the average. 
+
+    Parameters:
+    features -> A list of best features
+    params -> A dictionary with optimal parameters
+    rounds -> An integer denoting the number of iterations for this function
+    """
+
+    test_scores, train_scores = [], []
+    average_test, average_train = 0, 0
+    max_test, max_train = -1, -1
+    min_test, min_train = 2, 2
+
+    model = get_random_forest_classifier(params=params)
+
+    for i in range(rounds):
+        # Reset the data for each round
+        x_train, x_test, train_y, test_y = get_data()
+        scaled_xtrain, scaled_xtest = scale_data(x_train, x_test)
+        best_testx = scaled_xtest[features]
+        best_trainx = scaled_xtrain[features]
+
+        model.fit(best_trainx, train_y)
+
+        pred = model.predict(best_testx)
+        pred_train = model.predict(best_trainx)
+
+        ac_score_train = balanced_accuracy_score(pred_train, train_y)
+        ac_score = balanced_accuracy_score(pred, test_y)
+
+        train_scores.append(ac_score_train)
+        test_scores.append(ac_score)
+
+        avg_test = sum(test_scores)/len(test_scores)
+        avg_train = sum(train_scores)/len(train_scores)
+
+        print(f"\nRound {i+1}")
+        print(f"Average training accuracy: {round(average_train, 4)}")
+        print(f"Average test accuracy: {round(average_test, 4)}")
+
+        # Update the statistics
+        min_test = min(min_test, ac_score)
+        max_test = max(max_test, ac_score)
+
+        min_train = min(min_train, ac_score_train)
+        max_train = max(max_train, ac_score_train)
+
+        average_test = avg_test
+        average_train = avg_train
+
+    print(f"\n#### Final results ####")
+    print("Training accuracy:")
+    print(f"Average = {round(average_train, 4)}")
+    print(f"Max = {round(max_train, 4)}")
+    print(f"Min = {round(min_train, 4)}")
+
+    print("\nTesting accuracy:")
+    print(f"Average: {round(average_test, 4)}")
+    print(f"Max: {round(max_test, 4)}")
+    print(f"Min: {round(min_test, 4)}")
+
+if __name__ == "__main__":
+    x_train, x_test, y_train, y_test = get_data()
+    scaled_xtrain, scaled_xtest = scale_data(x_train, x_test)
+
+    # Run the entire pipeline
+    best_features, best_params = randomforest_pipeline()
+
+    # Get an average of multiple RF classifier scores
+    rf_classifier_multiple_rounds(
+        features=best_features,
+        params=best_params,
+        rounds=150
+    )
 
 """
 Optimized random forest clf results:
@@ -286,4 +369,14 @@ Feature selection with 10-fold cross-validation, scoring with weighted F1 scorin
 Optimal number of features: 47
 Training accuracy: 0.6705
 Testing accuracy: 0.7367
+
+Training data, balanced ac, 100 rounds
+Average: 0.6597
+Max: 0.7792
+Min: 0.5807
+
+Testing data, balanced ac, 100 rounds
+Average: 0.5456
+Max: 0.7725
+Min: 0.3345 
 """
