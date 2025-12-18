@@ -17,7 +17,6 @@ from data import get_data, get_scaled_test_data, scale_data
 x_train, x_test, y_train, y_test = get_data()
 x_train_scaled, x_test_scaled = scale_data(x_train, x_test)
 x_df = pd.concat([x_train, x_test], axis=0)
-#y_df = pd.concat([y_train, y_test], axis=0).apply(lambda x: "nonevent" if x == "nonevent" else "event")
 y_df = pd.concat([y_train, y_test], axis=0)
 
 real_testx_scaled = get_scaled_test_data()
@@ -25,8 +24,7 @@ real_testx_scaled = get_scaled_test_data()
 best_features = None
 
 def cv_score(model, train_y, train_x, scoring: str):
-    cv_result = cross_validate(model, train_x, train_y, cv=10, scoring=scoring, n_jobs=-1)
-    #cv_mse = -np.mean(cv_result["test_score"])
+    cv_result = cross_validate(model, train_x, train_y, cv=5, scoring=scoring, n_jobs=-1)
 
     return max(cv_result["test_score"])
 
@@ -48,10 +46,6 @@ def objective_func(trial):
     
     model = RandomForestClassifier(**params)
     model.fit(x_train_scaled, y_train)
-
-    pred = model.predict(x_test_scaled)
-
-    #score = accuracy_score(y_test, pred)
     
     score = cv_score(
         model=model,

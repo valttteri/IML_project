@@ -19,7 +19,6 @@ from data import get_data, scale_data, get_scaled_test_data
 x_train, x_test, y_train, y_test = get_data()
 x_train_scaled, x_test_scaled = scale_data(x_train, x_test)
 x_df = pd.concat([x_train, x_test], axis=0)
-#y_df = pd.concat([y_train, y_test], axis=0).apply(lambda x: "nonevent" if x == "nonevent" else "event")
 y_df = pd.concat([y_train, y_test], axis=0)
 
 test_df = pd.read_csv("test.csv")
